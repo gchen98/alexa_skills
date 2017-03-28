@@ -1,0 +1,28 @@
+{
+  "intents": [
+    {
+      "intent": "PlayEpisodeIntent",
+      "slots": [
+        {
+          "name": "episode",
+          "type": "AMAZON.NUMBER"
+        }
+      ]
+    },
+    {
+      "intent": "ListShowsIntent"
+    },
+    {
+      "intent": "ListEpisodesIntent"
+    },
+    {
+      "intent": "AMAZON.HelpIntent"
+    },
+    {
+      "intent": "AMAZON.StopIntent"
+    },
+    {
+      "intent": "AMAZON.CancelIntent"
+    }
+  ]
+}

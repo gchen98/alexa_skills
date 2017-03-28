@@ -1,0 +1,7 @@
+ListShowsIntent what shows are available
+
+ListEpisodesIntent what episodes are available
+
+PlayEpisodeIntent play episode {episode}
+
+AMAZON.StopIntent quit

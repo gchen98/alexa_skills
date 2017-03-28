@@ -1,0 +1,2 @@
+arn:aws:lambda:us-east-1:600292881520:function:Hello-World-Example-Skill
+amzn1.ask.skill.b225d0dc-daa1-49df-9ad4-35ae7597a459
