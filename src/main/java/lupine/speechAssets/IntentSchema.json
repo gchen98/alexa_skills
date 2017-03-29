@@ -1,6 +1,18 @@
 {
   "intents": [
     {
+      "intent": "ListShowsIntent"
+    },
+    {
+      "intent": "PlayShowIntent",
+      "slots": [
+        {
+          "name": "show",
+          "type": "AMAZON.TVSeries"
+        }
+      ]
+    },
+    {
       "intent": "PlayEpisodeIntent",
       "slots": [
         {
@@ -10,10 +22,13 @@
       ]
     },
     {
-      "intent": "ListShowsIntent"
-    },
-    {
-      "intent": "ListEpisodesIntent"
+      "intent": "SeekSecondsIntent",
+      "slots": [
+        {
+          "name": "seek_seconds",
+          "type": "AMAZON.NUMBER"
+        }
+      ]
     },
     {
       "intent": "AMAZON.HelpIntent"

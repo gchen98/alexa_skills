@@ -1,7 +1,10 @@
 ListShowsIntent what shows are available
 
-ListEpisodesIntent what episodes are available
+PlayShowIntent {show}
+PlayShowIntent Play {show}
 
-PlayEpisodeIntent play episode {episode}
+PlayEpisodeIntent {episode}
+
+SeekSecondsIntent Skip {seek_seconds} seconds
 
 AMAZON.StopIntent quit
