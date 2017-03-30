@@ -4,6 +4,18 @@
       "intent": "ListShowsIntent"
     },
     {
+      "intent": "ListBookmarksIntent"
+    },
+    {
+      "intent": "OpenBookmarkIntent",
+      "slots": [
+        {
+          "name": "bookmark",
+          "type": "AMAZON.TVSeries"
+        }
+      ]
+    },
+    {
       "intent": "PlayShowIntent",
       "slots": [
         {

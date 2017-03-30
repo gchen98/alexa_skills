@@ -72,19 +72,27 @@ import com.amazon.speech.ui.SimpleCard;
 public class LupineSpeechlet implements Speechlet {
     private static final Logger log = LoggerFactory.getLogger(LupineSpeechlet.class);
 
-    private static final String URL_PREFIX =
+    private static final String MPLAYER_WS_PREFIX =
     "http://www.caseyandgary.com:8000/mplayer/";
+    private static final String BROWSER_WS_PREFIX =
+    "http://www.caseyandgary.com:8000/browser/";
 
+    private static final String SLOT_BOOKMARK = "bookmark";
     private static final String SLOT_SHOW = "show";
     private static final String SLOT_EPISODE = "episode";
     private static final String SLOT_SEEK_SECONDS = "seek_seconds";
 
     private static final String SESSION_SHOWS = "shows";
+    private static final String SESSION_BOOKMARKS = "bookmarks";
     private static final String SESSION_SELECTED_SHOW = "selected_show";
     private static final String SESSION_EPISODES = "episodes";
 
     private static final String helpText = "With the video manager, you can ask for available shows, ask for available episodes, and play a particular episode. For example, you could say what shows are available, or what episodes are available, or play episode 4. So, what would you like to ask?";
     private static final String repromptText = "What would you like to ask?";
+
+    enum MediaType{
+        SHOW,BOOKMARK
+    }
 
     @Override
     public void onSessionStarted(final SessionStartedRequest request, final Session session) throws SpeechletException {
@@ -109,10 +117,19 @@ public class LupineSpeechlet implements Speechlet {
         Intent intent = request.getIntent();
         String intentName = intent.getName();
 
-        if ("ListShowsIntent".equals(intentName)) {
-            return handleListShows(intent,session);
+        if ("ListShowsIntent".equals(intentName) || 
+        "ListBookmarksIntent".equals(intentName)) {
+            MediaType mediaType = null;
+            if("ListShowsIntent".equals(intentName)){
+                mediaType = MediaType.SHOW;
+            }else if("ListBookmarksIntent".equals(intentName)){
+                mediaType = MediaType.BOOKMARK;
+            }
+            return handleListMedia(intent,session,mediaType);
         }else if ("PlayShowIntent".equals(intentName)) {
             return handlePlayShow(intent,session);
+        }else if ("OpenBookmarkIntent".equals(intentName)) {
+            return handleOpenBookmark(intent,session);
         }else if ("PlayEpisodeIntent".equals(intentName)) {
             return handlePlayEpisode(intent,session);
         }else if ("SeekSecondsIntent".equals(intentName)) {
@@ -121,10 +138,7 @@ public class LupineSpeechlet implements Speechlet {
             // Create the plain text output.
             return newAskResponse(helpText, false, repromptText, false);
         } else if ("AMAZON.StopIntent".equals(intentName)) {
-            PlainTextOutputSpeech outputSpeech = new PlainTextOutputSpeech();
-            outputSpeech.setText("Goodbye");
-
-            return SpeechletResponse.newTellResponse(outputSpeech);
+            return handleStopIntent(intent,session);
         } else if ("AMAZON.CancelIntent".equals(intentName)) {
             PlainTextOutputSpeech outputSpeech = new PlainTextOutputSpeech();
             outputSpeech.setText("Goodbye");
@@ -144,18 +158,26 @@ public class LupineSpeechlet implements Speechlet {
         // any session cleanup logic would go here
     }
 
-    private SpeechletResponse handleListShows(Intent intent, Session session){
+    private SpeechletResponse handleListMedia(Intent intent, Session session,MediaType mediaType){
         try{
 
-            String speechPrefixContent = "<p>The list of shows are</p> ";
-            String cardPrefixContent = "The list of shows are: ";
+            String speechPrefixContent = "<p>Here is your list of programs</p> ";
+            String cardPrefixContent = "Here is your list of programs ";
             String cardTitle = "Shows";
             String speechOutput = null;
 
-            URL url = new URL(URL_PREFIX + "/list");
+            URL url = null;
+            switch(mediaType){
+                case SHOW:
+                    url = new URL(MPLAYER_WS_PREFIX + "/list");
+                    break;
+                case BOOKMARK:
+                    url = new URL(BROWSER_WS_PREFIX + "/list");
+                    break;
+            }
             String jsonText = getJsonString(url);
-            List<String> showNames = getJsonShowNames(jsonText);
-            if(showNames==null){
+            List<String> mediaNames = getJsonMediaNames(jsonText,mediaType);
+            if(mediaNames==null){
                 speechOutput = "There was a problem connecting to the media server at this time. Please try again later.";
                 // Create the plain text output
                 SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
@@ -166,22 +188,29 @@ public class LupineSpeechlet implements Speechlet {
                 speechOutputBuilder.append(speechPrefixContent);
                 StringBuilder cardOutputBuilder = new StringBuilder();
                 cardOutputBuilder.append(cardPrefixContent);
-                for(int i=0;i<showNames.size();++i){
+                for(int i=0;i<mediaNames.size();++i){
                     speechOutputBuilder.append("<p>");
-                    speechOutputBuilder.append(showNames.get(i));
+                    speechOutputBuilder.append(mediaNames.get(i));
                     speechOutputBuilder.append("</p> ");
-                    cardOutputBuilder.append(showNames.get(i));
+                    cardOutputBuilder.append(mediaNames.get(i));
                     cardOutputBuilder.append("\n");
                 }
-                speechOutputBuilder.append(" What show would you like?");
-                cardOutputBuilder.append(" What show would you like?");
+                speechOutputBuilder.append(" What program would you like?");
+                cardOutputBuilder.append(" What program would you like?");
                 speechOutput = speechOutputBuilder.toString();
                 // Create the Simple card content.
                 SimpleCard card = new SimpleCard();
                 card.setTitle(cardTitle);
                 card.setContent(cardOutputBuilder.toString());
                     
-                session.setAttribute(SESSION_SHOWS, showNames);
+                switch(mediaType){
+                    case SHOW:
+                        session.setAttribute(SESSION_SHOWS, mediaNames);
+                        break;
+                    case BOOKMARK:
+                        session.setAttribute(SESSION_BOOKMARKS, mediaNames);
+                        break;
+                }
                 SpeechletResponse response = newAskResponse("<speak>" + speechOutput + "</speak>", true, repromptText, false);
                 response.setCard(card);
                 return response;
@@ -205,7 +234,7 @@ public class LupineSpeechlet implements Speechlet {
             List<String> showPaths = null;
             if(showName!=null){
                 log.trace("Getting show info for {}",showName);
-                URL url = new URL(URL_PREFIX + "/show_info?show_name="+URLEncoder.encode(showName,"UTF-8"));
+                URL url = new URL(MPLAYER_WS_PREFIX + "/show_info?show_name="+URLEncoder.encode(showName,"UTF-8"));
                 String jsonText = getJsonString(url);
                 showPaths = getJsonShowPaths(jsonText);
             }
@@ -266,7 +295,7 @@ public class LupineSpeechlet implements Speechlet {
             }
             if(showPath!=null){
                 log.trace("Playing episode {}",showPath);
-                URL url = new URL(URL_PREFIX + "/play?file="+URLEncoder.encode(showPath,"UTF-8"));
+                URL url = new URL(MPLAYER_WS_PREFIX + "/play?file="+URLEncoder.encode(showPath,"UTF-8"));
                 String jsonText = getJsonString(url);
                 speechOutput = "Playing episode "+episodeName+" for "+showName;
                 // Create the plain text output
@@ -286,6 +315,38 @@ public class LupineSpeechlet implements Speechlet {
         }
     }
 
+    private SpeechletResponse handleOpenBookmark(Intent intent, Session session){
+        try{
+            String speechPrefixContent = "";
+            String cardPrefixContent = "";
+            String cardTitle = "Opening bookmark";
+            String speechOutput = null;
+
+            Slot bookmarkSlot = intent.getSlot(SLOT_BOOKMARK);
+            String bookmarkName = bookmarkSlot.getValue();
+            if(bookmarkName!=null){
+                log.trace("Opening bookmark {}",bookmarkName);
+                URL url = new URL(BROWSER_WS_PREFIX + "/open?bookmark="+URLEncoder.encode(bookmarkName,"UTF-8"));
+                String jsonText = getJsonString(url);
+                speechOutput = "Opened site "+bookmarkName;
+                // Create the plain text output
+                SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
+                outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
+                return SpeechletResponse.newTellResponse(outputSpeech);
+            }else{
+                speechOutput = "You did not provide a bookmark";
+                // Create the plain text output
+                SsmlOutputSpeech outputSpeech = new SsmlOutputSpeech();
+                outputSpeech.setSsml("<speak>" + speechOutput + "</speak>");
+                return SpeechletResponse.newTellResponse(outputSpeech);
+            }
+        }catch(Exception ex){
+            log.error("Failed to open bookmark",ex);
+            return null;
+        }
+    }
+
+
     private SpeechletResponse handleSeekSeconds(Intent intent, Session session){
         try{
             String speechPrefixContent = "";
@@ -299,7 +360,7 @@ public class LupineSpeechlet implements Speechlet {
             String showName = (String)session.getAttribute(SESSION_SELECTED_SHOW);
             if(seekSeconds!=0){
                 log.trace("Seeking {} seconds",seekSeconds);
-                URL url = new URL(URL_PREFIX + "/seek?seconds="+URLEncoder.encode(seekSecondsName,"UTF-8"));
+                URL url = new URL(MPLAYER_WS_PREFIX + "/seek?seconds="+URLEncoder.encode(seekSecondsName,"UTF-8"));
                 String jsonText = getJsonString(url);
                 speechOutput = "Seeking "+seekSecondsName+" seconds for "+showName;
                 // Create the plain text output
@@ -319,13 +380,26 @@ public class LupineSpeechlet implements Speechlet {
         }
     }
 
+    private SpeechletResponse handleStopIntent(Intent intent, Session session){
+        try{
+            URL url = new URL(MPLAYER_WS_PREFIX + "/stop");
+            String jsonText = getJsonString(url);
+            PlainTextOutputSpeech outputSpeech = new PlainTextOutputSpeech();
+            outputSpeech.setText("Goodbye");
+            return SpeechletResponse.newTellResponse(outputSpeech);
+        }catch(Exception ex){
+            log.error("Failed to seek episode ",ex);
+            return null;
+        }
+    }
+
     private String getJsonString(URL url){
         InputStreamReader inputStream = null;
         BufferedReader bufferedReader = null;
         String text = null;
         try {
             String line;
-            //String urlStr = URL_PREFIX + "/list";
+            //String urlStr = MPLAYER_WS_PREFIX + "/list";
             //log.info("Creating a URL {}",urlStr);
             //URL url = new URL(urlStr);
             inputStream = new InputStreamReader(url.openStream(), Charset.forName("UTF-8"));
@@ -362,17 +436,25 @@ public class LupineSpeechlet implements Speechlet {
         return null;
     }
 
-    private List<String> getJsonShowNames(String jsonText){
+    private List<String> getJsonMediaNames(String jsonText,MediaType mediaType){
         if(jsonText==null) return null;
         try{
             JSONObject jsonObject = new JSONObject(jsonText);
             JSONObject responseObject = jsonObject.getJSONObject("response");
-            JSONArray showsArray = responseObject.getJSONArray("shows");
-            List<String> shows = new ArrayList<String>();
-            for(int i=0;i<showsArray.length();++i){
-                shows.add(showsArray.getString(i));
+            JSONArray mediaArray = null;
+            switch(mediaType){
+                case SHOW:
+                    mediaArray = responseObject.getJSONArray("shows");
+                    break;
+                case BOOKMARK:
+                    mediaArray = responseObject.getJSONArray("bookmarks");
+                    break;
             }
-            return shows;
+            List<String> media = new ArrayList<String>();
+            for(int i=0;i<mediaArray.length();++i){
+                media.add(mediaArray.getString(i));
+            }
+            return media;
         }catch(Exception ex){
             log.error("Problem parsing JSON",ex);
         }
