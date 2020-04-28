@@ -33,7 +33,7 @@ public class LupineSpeechletRequestStreamHandler extends SpeechletRequestStreamH
          */
         supportedApplicationIds = new HashSet<String>();
         // supportedApplicationIds.add("amzn1.echo-sdk-ams.app.[unique-value-here]");
-		supportedApplicationIds.add("amzn1.ask.skill.77a971a7-42ad-46e5-8704-c2918d6ab038");
+	supportedApplicationIds.add("amzn1.ask.skill.77a971a7-42ad-46e5-8704-c2918d6ab038");
     }
 
     public LupineSpeechletRequestStreamHandler() {

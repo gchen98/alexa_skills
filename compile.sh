@@ -1,1 +1,1 @@
-mvn assembly:assembly -DdescriptorId=jar-with-dependencies package
+mvn clean assembly:assembly -DdescriptorId=jar-with-dependencies package
