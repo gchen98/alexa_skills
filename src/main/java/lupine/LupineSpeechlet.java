@@ -76,52 +76,60 @@ import com.amazon.speech.ui.SimpleCard;
  * <p>
  */
 public class LupineSpeechlet implements Speechlet {
+    private final String helpText = System.getenv("HELP_TEXT");
+    private final String MPLAYER_WS_PREFIX = 
+    System.getenv("MPLAYER_WS_PREFIX");
+    private final String BROWSER_WS_PREFIX = 
+    System.getenv("BROWSER_WS_PREFIX");
+
+    private static final Logger log = LoggerFactory.getLogger(
+    LupineSpeechlet.class);
 
     private final String INTENT_REFRESH_MOVIES= "RefreshMoviesIntent";
     private final String INTENT_LIST_MOVIES= "ListMoviesIntent";
     private final String INTENT_LIST_CHANNELS= "ListChannelsIntent";
     private final String INTENT_LIST_BOOKMARKS = "ListBookmarksIntent";
     private final String INTENT_PLAY_CHANNEL = "PlayChannelIntent";
+    private final String INTENT_RECORD_CHANNEL = "RecordChannelIntent";
     private final String INTENT_PLAY_MOVIE = "PlayMovieIntent";
     private final String INTENT_PLAY_EPISODE = "PlayEpisodeIntent";
     private final String INTENT_OPEN_BOOKMARK = "OpenBookmarkIntent";
     private final String INTENT_SEEK_SECONDS = "SeekSecondsIntent";
+    private final String INTENT_VOLUME = "VolumeIntent";
     private final String INTENT_STOP = "AMAZON.StopIntent";
     private final String INTENT_HELP = "AMAZON.HelpIntent";
-
-    private static final Logger log = LoggerFactory.getLogger(
-    LupineSpeechlet.class);
     private final String MEDIA_TYPE_CHANNELS = "channels";
     private final String MEDIA_TYPE_MOVIES = "movies";
-
-
-    private static final String MPLAYER_WS_PREFIX =
-    "http://www.caseyandgary.com:9000/mplayer/";
-
-    private static final String BROWSER_WS_PREFIX =
-    "http://www.caseyandgary.com:9000/browser/";
-
-    private static final String SLOT_BOOKMARK = "bookmark";
-    private static final String SLOT_MOVIE = "movie";
-    private static final String SLOT_CHANNEL = "channel";
-    private static final String SLOT_EPISODE = "episode";
-    private static final String SLOT_SEEK_SECONDS = "seek_seconds";
-
-    //private static final String SESSION_MOVIES = "movies";
-    //private static final String SESSION_CHANNELS = "channels";
-    //private static final String SESSION_BOOKMARKS = "bookmarks";
-    private static final String SESSION_SELECTED_MOVIE = "selected_movie";
-    private static final String SESSION_EPISODES = "episodes";
-
-    private static final String helpText = "With our kitchen TV Alexa app, "+
-    "you can ask to play movies or TV channels. "+
-    "Examples: What movies are available? or what channels are available?"+
-    " To watch a movie say, play movie moviename.  To watch a TV channel say, "+
-    "play channel channel number.  To reload the movie channel list on the "+
-    "server, say refresh movie list." ;
+    private final String SLOT_BOOKMARK = "bookmark";
+    private final String SLOT_MOVIE = "movie";
+    private final String SLOT_CHANNEL = "channel";
+    private final String SLOT_EPISODE = "episode";
+    private final String SLOT_SEEK_SECONDS = "seek_seconds";
+    private final String SLOT_VOLUME = "volume";
+    private final String SLOT_MINUTES = "minutes";
+    //private final String SESSION_MOVIES = "movies";
+    //private final String SESSION_CHANNELS = "channels";
+    //private final String SESSION_BOOKMARKS = "bookmarks";
+    private final String SESSION_SELECTED_MOVIE = "selected_movie";
+    private final String SESSION_EPISODES = "episodes";
 
     enum MediaType{
         MOVIE,CHANNEL,BOOKMARK
+    }
+
+    @Override
+    public SpeechletResponse onLaunch(final LaunchRequest request, 
+    final Session session) throws SpeechletException {
+        log.info("onLaunch requestId={}, sessionId={}", 
+        request.getRequestId(), session.getSessionId());
+
+        return newTellResponse(
+        "<speak>Casey and Gary Kitchen TV app. Say Alexa help for "+
+        "more info.</speak>"
+        , true,false);
+
+        //return newAskResponse(helpText, false, 
+        //"What would you like to do?", false);
     }
 
     @Override
@@ -133,15 +141,11 @@ public class LupineSpeechlet implements Speechlet {
     }
 
     @Override
-    public SpeechletResponse onLaunch(final LaunchRequest request, 
+    public void onSessionEnded(final SessionEndedRequest request, 
     final Session session) throws SpeechletException {
-        log.info("onLaunch requestId={}, sessionId={}", 
+        log.info("onSessionEnded requestId={}, sessionId={}", 
         request.getRequestId(), session.getSessionId());
-
-        return newTellResponse("<speak>Kitchen TV app. Say Alexa help for more info.</speak>", true,false);
-
-        //return newAskResponse(helpText, false, 
-        //"What would you like to do?", false);
+        // any session cleanup logic would go here
     }
 
     @Override
@@ -172,10 +176,14 @@ public class LupineSpeechlet implements Speechlet {
         //    return handlePlayEpisode(intent,session);
         }else if (INTENT_PLAY_CHANNEL.equals(intentName)){
             return handlePlayMedia(intent,session,MediaType.CHANNEL);
+        }else if (INTENT_RECORD_CHANNEL.equals(intentName)){
+            return handleRecordChannel(intent,session);
         }else if (INTENT_OPEN_BOOKMARK.equals(intentName)) {
             return handleOpenBookmark(intent,session);
         }else if (INTENT_SEEK_SECONDS.equals(intentName)) {
             return handleSeekSeconds(intent,session);
+        }else if (INTENT_VOLUME.equals(intentName)) {
+            return handleVolume(intent,session);
         }else if (INTENT_REFRESH_MOVIES.equals(intentName)) {
             return handleRefreshMovies(intent,session);
         } else if (INTENT_HELP.equals(intentName)) {
@@ -189,14 +197,6 @@ public class LupineSpeechlet implements Speechlet {
         }
     }
 
-    @Override
-    public void onSessionEnded(final SessionEndedRequest request, 
-    final Session session) throws SpeechletException {
-        log.info("onSessionEnded requestId={}, sessionId={}", 
-        request.getRequestId(), session.getSessionId());
-
-        // any session cleanup logic would go here
-    }
 
     private SpeechletResponse handleListMedia(Intent intent, 
     Session session,MediaType mediaType){
@@ -208,13 +208,13 @@ public class LupineSpeechlet implements Speechlet {
             URL url = null;
             switch(mediaType){
                 case MOVIE:
-                    url = new URL(MPLAYER_WS_PREFIX + "/list?type=movies");
+                    url = new URL(MPLAYER_WS_PREFIX + "list?type=movies");
                     break;
                 case CHANNEL:
-                    url = new URL(MPLAYER_WS_PREFIX + "/list?type=channels");
+                    url = new URL(MPLAYER_WS_PREFIX + "list?type=channels");
                     break;
                 case BOOKMARK:
-                    url = new URL(BROWSER_WS_PREFIX + "/list?type=bookmarks");
+                    url = new URL(BROWSER_WS_PREFIX + "list?type=bookmarks");
                     break;
             }
             log.debug("Got url string of {}",url);
@@ -383,7 +383,7 @@ public class LupineSpeechlet implements Speechlet {
             if (mediaType==MediaType.MOVIE){
                 mediaTypeStr = MEDIA_TYPE_MOVIES;
                 Slot slot = intent.getSlot(SLOT_MOVIE);
-                mediaName = slot.getValue();
+                mediaName = URLEncoder.encode(slot.getValue(),"UTF-8");
             }else if (mediaType==MediaType.CHANNEL){
                 mediaTypeStr = MEDIA_TYPE_CHANNELS;
                 Slot slot = intent.getSlot(SLOT_CHANNEL);
@@ -395,8 +395,8 @@ public class LupineSpeechlet implements Speechlet {
             String speechOutput = null;
             log.debug("Playing media {}",mediaName);
             session.setAttribute(SESSION_SELECTED_MOVIE, mediaName);
-            URL url = new URL(MPLAYER_WS_PREFIX + "/play?type="+
-            mediaTypeStr+"&file="+URLEncoder.encode(mediaName,"UTF-8"));
+            URL url = new URL(MPLAYER_WS_PREFIX + "play?type="+
+            mediaTypeStr+"&file="+mediaName);
             String jsonText = getJsonString(url);
             speechOutput = "Playing "+mediaName;
             return newTellResponse("<speak>" + speechOutput + "</speak>",
@@ -405,6 +405,48 @@ public class LupineSpeechlet implements Speechlet {
             log.error("Failed to play channel",ex);
             return newTellResponse(
             "<speak>Failed to play channel. Error was: " + ex.getMessage() + "</speak>",true,false);
+        }
+    }
+
+    private SpeechletResponse handleRecordChannel(Intent intent, 
+    Session session){
+        try{
+            String channelNumberStr = 
+            intent.getSlot(SLOT_CHANNEL).getValue();
+            String minutesStr = 
+            intent.getSlot(SLOT_MINUTES).getValue();
+
+            String cardTitle = "Recording channel "+
+            channelNumberStr+" for "+minutesStr+" minutes.";
+            String speechPrefixContent = "";
+            String cardPrefixContent = "";
+            log.debug(cardTitle);
+            URL url = new URL(MPLAYER_WS_PREFIX + "record?channel="+
+            channelNumberStr+"&duration_minutes="+minutesStr);
+
+            String jsonText = getJsonString(url);
+            log.debug("Response from server:",jsonText);
+
+            JSONObject jsonObject = new JSONObject(jsonText);
+            JSONObject responseObj = jsonObject.getJSONObject
+            ("response");
+            boolean recordingStatus = 
+            Boolean.parseBoolean(responseObj.getString("recording"));
+            String mediaName = responseObj.getString("filename");
+
+            String okSpeechOutput = "Recording file for "+
+            minutesStr+" minutes.";
+            String notOkSpeechOutput = "Not recording file as "+
+            "recording is in progress.";
+            String speechOutput = recordingStatus?
+            okSpeechOutput:notOkSpeechOutput;
+
+            return newTellResponse("<speak>" + speechOutput + 
+            "</speak>", true,false);
+        }catch(Exception ex){
+            log.error("Failed to record channel",ex);
+            return newTellResponse(
+            "<speak>Failed to record channel. Error was: " + ex.getMessage() + "</speak>",true,false);
         }
     }
 
@@ -417,7 +459,7 @@ public class LupineSpeechlet implements Speechlet {
 
             Slot seekSecondsSlot = intent.getSlot(SLOT_SEEK_SECONDS);
             String seekSecondsName = seekSecondsSlot.getValue();
-            int seekSeconds = Integer.parseInt(seekSecondsName) - 1;
+            int seekSeconds = Integer.parseInt(seekSecondsName) ;
             String mediaName = (String)session.getAttribute(
             SESSION_SELECTED_MOVIE);
             if(seekSeconds!=0){
@@ -442,6 +484,34 @@ public class LupineSpeechlet implements Speechlet {
         }
     }
 
+    private SpeechletResponse handleVolume(Intent intent, 
+    Session session){
+        try{
+            String speechPrefixContent = "";
+            String cardPrefixContent = "";
+            String cardTitle = "Seeking";
+            String speechOutput = null;
+
+            Slot volumeSlot = intent.getSlot(SLOT_VOLUME);
+            String volumeStr = volumeSlot.getValue();
+            int volume = Integer.parseInt(volumeStr);
+            String mediaName = (String)session.getAttribute(
+            SESSION_SELECTED_MOVIE);
+            log.debug("Setting volume as {}.",volumeStr);
+            URL url = new URL(MPLAYER_WS_PREFIX + 
+            "/volume?volume="+URLEncoder.encode(volumeStr,"UTF-8"));
+            String jsonText = getJsonString(url);
+            speechOutput = "Setting volume to "+volumeStr; 
+            return newTellResponse(
+            "<speak>" + speechOutput + "</speak>", true,false);
+        }catch(Exception ex){
+            log.error("Failed to set volume ",ex);
+            return newTellResponse(
+            "<speak>Failed to set volume because of error: " +
+            ex.getMessage()  + "</speak>", true,false);
+        }
+    }
+
     private SpeechletResponse handleRefreshMovies(Intent intent, 
     Session session){
         try{
@@ -451,7 +521,7 @@ public class LupineSpeechlet implements Speechlet {
             String speechOutput = null;
 
             log.debug("Refreshing movie list");
-            URL url = new URL(MPLAYER_WS_PREFIX + "/refresh");
+            URL url = new URL(MPLAYER_WS_PREFIX + "reload");
             String jsonText = getJsonString(url);
             speechOutput = "Refreshing movie and channel list";
             return newTellResponse("<speak>" + speechOutput + 
@@ -468,7 +538,7 @@ public class LupineSpeechlet implements Speechlet {
 
     private SpeechletResponse handleStopIntent(Intent intent, Session session){
         try{
-            URL url = new URL(MPLAYER_WS_PREFIX + "/stop");
+            URL url = new URL(MPLAYER_WS_PREFIX + "stop");
             log.debug("Asked mplayer to stop");
             String jsonText = getJsonString(url);
             return newTellResponse("Goodbye",false,true);
@@ -516,10 +586,11 @@ public class LupineSpeechlet implements Speechlet {
         String text = null;
         try {
             String line;
-            //String urlStr = MPLAYER_WS_PREFIX + "/list";
+            //String urlStr = MPLAYER_WS_PREFIX + "list";
             //log.info("Creating a URL {}",urlStr);
             //URL url = new URL(urlStr);
-            inputStream = new InputStreamReader(url.openStream(), Charset.forName("UTF-8"));
+            inputStream = new InputStreamReader(url.openStream(), 
+            Charset.forName("UTF-8"));
             bufferedReader = new BufferedReader(inputStream);
             StringBuilder builder = new StringBuilder();
             while ((line = bufferedReader.readLine()) != null) {
@@ -535,6 +606,7 @@ public class LupineSpeechlet implements Speechlet {
         }
         return text;
     }
+
 
     private List<String> getJsonMoviePaths(String jsonText){
         if(jsonText==null) return null;
@@ -553,7 +625,8 @@ public class LupineSpeechlet implements Speechlet {
         return null;
     }
 
-    private List<String> getJsonMediaNames(String jsonText,MediaType mediaType)
+    private List<String> getJsonMediaNames(String jsonText,
+    MediaType mediaType)
     throws Exception{
         if(jsonText==null) return null;
         JSONObject jsonObject = new JSONObject(jsonText);
@@ -622,7 +695,8 @@ public class LupineSpeechlet implements Speechlet {
      *
      * @return SpeechletResponse the speechlet response
      */
-    private SpeechletResponse newTellResponse(String stringOutput, boolean isOutputSsml, boolean isEndSession) {
+    private SpeechletResponse newTellResponse(String stringOutput, 
+    boolean isOutputSsml, boolean isEndSession) {
         OutputSpeech outputSpeech;
         if (isOutputSsml) {
             outputSpeech = new SsmlOutputSpeech();
@@ -631,7 +705,8 @@ public class LupineSpeechlet implements Speechlet {
             outputSpeech = new PlainTextOutputSpeech();
             ((PlainTextOutputSpeech) outputSpeech).setText(stringOutput);
         }
-        SpeechletResponse speechletResponse = SpeechletResponse.newTellResponse(outputSpeech);
+        SpeechletResponse speechletResponse = 
+        SpeechletResponse.newTellResponse(outputSpeech);
         speechletResponse.setShouldEndSession(isEndSession);
         return speechletResponse;
     }
